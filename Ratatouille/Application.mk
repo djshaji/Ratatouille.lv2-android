@@ -1,2 +1,3 @@
-APP_PLATFORM := latest
-APP_CPPFLAGS := -std=gnu++17
+APP_PLATFORM := android-29
+APP_CPPFLAGS := -std=c++17 
+APP_STL := c++_shared
