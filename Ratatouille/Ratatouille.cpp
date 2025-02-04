@@ -31,7 +31,7 @@
 #include <lv2/state/state.h>
 #include <lv2/worker/worker.h>
 #include <lv2/buf-size/buf-size.h>
-
+#include "log.h"
 ///////////////////////// MACRO SUPPORT ////////////////////////////////
 
 #define PLUGIN_URI "urn:brummer:ratatouille"
@@ -474,13 +474,17 @@ void Xratatouille::deactivate_f()
 
 void Xratatouille::do_work_mono()
 {
+    IN
     // load Model in slot A
     if (_ab.load(std::memory_order_acquire) == 1) {
+        //LOGD ("[ratatouille] setModelFile %s", model_file.c_str ());
         slotA.setModelFile(model_file);
         if (!slotA.loadModel()) {
             model_file = "None";
+            //LOGD ("slot A model loading failed!");
             _neuralA.store(false, std::memory_order_release);
         } else {
+            //LOGD ("slot A model loaded successfully!");
             _neuralA.store(true, std::memory_order_release);
         }
     // load Model in slot B
@@ -488,8 +492,10 @@ void Xratatouille::do_work_mono()
         slotB.setModelFile(model_file1);
         if (!slotB.loadModel()) {
             model_file1 = "None";
+            //LOGD ("slot B model loading failed!");
             _neuralB.store(false, std::memory_order_release);
         } else {
+            //LOGD ("slot B model loaded successfully!");
             _neuralB.store(true, std::memory_order_release);
         }
     // load Models in slots A and B
@@ -525,7 +531,7 @@ void Xratatouille::do_work_mono()
         while (!conv.checkstate());
         if(!conv.start(rt_prio, rt_policy)) {
             ir_file = "None";
-            printf("impulse convolver update fail\n");
+            //LOGD ("impulse convolver update fail\n");
         }
     // load IR file in second convolver
     } else if (_ab.load(std::memory_order_acquire) == 8) {
@@ -544,7 +550,7 @@ void Xratatouille::do_work_mono()
         while (!conv1.checkstate());
         if(!conv1.start(rt_prio, rt_policy)) {
             ir_file1 = "None";
-            printf("impulse convolver1 update fail\n");
+            //LOGD ("impulse convolver1 update fail\n");
         }
     // load all models and IR files
     } else if (_ab.load(std::memory_order_acquire) > 10) {
@@ -583,7 +589,7 @@ void Xratatouille::do_work_mono()
             while (!conv.checkstate());
             if(!conv.start(rt_prio, rt_policy)) {
                 ir_file = "None";
-                printf("impulse convolver update fail\n");
+                //LOGD ("impulse convolver update fail\n");
             }
         } else {
             if (conv.is_runnable()) {
@@ -607,7 +613,7 @@ void Xratatouille::do_work_mono()
             while (!conv1.checkstate());
             if(!conv1.start(rt_prio, rt_policy)) {
                 ir_file1 = "None";
-                printf("impulse convolver1 update fail\n");
+                //LOGD ("impulse convolver1 update fail\n");
             }
         } else {
             if (conv1.is_runnable()) {
@@ -621,7 +627,7 @@ void Xratatouille::do_work_mono()
         phaseOffset = slotB.getPhaseOffset() - slotA.getPhaseOffset();
         pdelay->set(phaseOffset);
         pdelay->clear_state_f();
-        //fprintf(stderr, "phase offset = %i\n", phaseOffset);
+        //f//LOGD (stderr, "phase offset = %i\n", phaseOffset);
     } else {
         phaseOffset = 0;
         pdelay->set(phaseOffset);
@@ -644,6 +650,7 @@ void Xratatouille::do_work_mono()
     _execute.store(false, std::memory_order_release);
     // set flag that GUI need information about changed state
     _notify_ui.store(true, std::memory_order_release);
+    OUT
 }
 
 // prepare atom message with file path
@@ -690,6 +697,8 @@ inline const LV2_Atom* Xratatouille::read_set_file(const LV2_Atom_Object* obj) {
     if (!file_path || (file_path->type != atom_Path)) {
         return NULL;
     }
+    
+    //LOGD ("[ratatouille] loaded file: %s\n", file_path +1);
 
     return file_path;
 }
@@ -717,10 +726,13 @@ inline void Xratatouille::check_messages(uint32_t n_samples)
     lv2_atom_forge_set_buffer(&forge, (uint8_t*)notify, notify_capacity);
     lv2_atom_forge_sequence_head(&forge, &notify_frame, 0);
 
+    //~  //LOGD ("execute: %d", _execute.load(std::memory_order_acquire));
     LV2_ATOM_SEQUENCE_FOREACH(control, ev) {
+        //~  //LOGD ("[ratarouille] BODY TYPE: %d [%d|%d|%d]", ev->body.type, forge.Object, forge.Resource, forge.Blank);
         if (lv2_atom_forge_is_object_type(&forge, ev->body.type)) {
             const LV2_Atom_Object* obj = (LV2_Atom_Object*)&ev->body;
             if (obj->body.otype == patch_Get) {
+                 //LOGD ("[ratarouille] OBJ TYPE: %d", obj->body.otype);
                 if (model_file != "None")
                     write_set_file(&forge, xlv2_model_file, model_file.data());
                 if (model_file1 != "None")
@@ -731,16 +743,28 @@ inline void Xratatouille::check_messages(uint32_t n_samples)
                     write_set_file(&forge, xlv2_ir_file1, ir_file1.data());
            } else if (obj->body.otype == patch_Set) {
                 const LV2_Atom* file_path = read_set_file(obj);
+                 //LOGD ("[ratarouille] file path: %s", file_path);
                 if (file_path) {
-                    if (_ab.load(std::memory_order_acquire) == 1)
+                    //LOGD ("ok, file_path found");
+                    if (_ab.load(std::memory_order_acquire) == 1) {
+                        //LOGD ("model_file");
                         model_file = (const char*)(file_path+1);
-                    else if (_ab.load(std::memory_order_acquire) == 2)
+                         //LOGD ("execute: %d", _execute.load(std::memory_order_acquire));
+                    }
+                    else if (_ab.load(std::memory_order_acquire) == 2) {
+                        //LOGD ("model_file1");
                         model_file1 = (const char*)(file_path+1);
-                    else if (_ab.load(std::memory_order_acquire) == 7)
+                    }
+                    else if (_ab.load(std::memory_order_acquire) == 7) {
+                        //LOGD ("ir_file");
                         ir_file = (const char*)(file_path+1);
-                    else if (_ab.load(std::memory_order_acquire) == 8)
+                    }
+                    else if (_ab.load(std::memory_order_acquire) == 8) {
+                        //LOGD ("ir_file1");
                         ir_file1 = (const char*)(file_path+1);
+                    }
                     if (!_execute.load(std::memory_order_acquire)) {
+                        //LOGD ("xrworker.runProcess");
                         bufsize = n_samples;
                         _execute.store(true, std::memory_order_release);
                         xrworker.runProcess();
@@ -751,8 +775,10 @@ inline void Xratatouille::check_messages(uint32_t n_samples)
         }
     }
 
+    
     // check if a model or IR file is to be removed
     if (!_execute.load(std::memory_order_acquire)) {
+        //~ //LOGD ("check if a model or IR file is to be removed");
         if ((*_eraseSlotA)) {
             _ab.store(1, std::memory_order_release);
              model_file = "None";
@@ -780,12 +806,15 @@ inline void Xratatouille::check_messages(uint32_t n_samples)
         }
     }
 
+    
     if (!_execute.load(std::memory_order_acquire) && _restore.load(std::memory_order_acquire)) {
+         //LOGD ("_execute.load");
         _execute.store(true, std::memory_order_release);
         bufsize = n_samples;
         xrworker.runProcess();
         //schedule->schedule_work(schedule->handle,  sizeof(bool), &doit);
         _restore.store(false, std::memory_order_release);
+        
     }
     // check if normalisation is pressed for conv
     if (normA != static_cast<uint32_t>(*(_normA)) && !_execute.load(std::memory_order_acquire)) {
@@ -813,8 +842,10 @@ inline void Xratatouille::check_messages(uint32_t n_samples)
             _restore.store(false, std::memory_order_release);
         }
     }
+    
     // notify UI on changed model files
     if (_notify_ui.load(std::memory_order_acquire)) {
+        //LOGD ("_notify_ui.load");
         _notify_ui.store(false, std::memory_order_release);
 
         write_set_file(&forge, xlv2_model_file, model_file.data());
@@ -836,7 +867,11 @@ inline void Xratatouille::processDsp(uint32_t n_samples, float* input, float* ou
         memcpy(output, input, n_samples*sizeof(float));
 
     // basic bypass
-    if (!static_cast<uint32_t>(*_bypass)) return;
+    if (!static_cast<uint32_t>(*_bypass)) {
+        //~ //LOGD ("ayyo bypass: %d", *_bypass);
+        
+     return;   
+    }
 
     // get controller values from host
     double fSlow0 = 0.0010000000000000009 * std::pow(1e+01, 0.05 * double(*(_inputGain)));
@@ -896,25 +931,30 @@ inline void Xratatouille::processDsp(uint32_t n_samples, float* input, float* ou
 
     // process slot A
     if (_neuralA.load(std::memory_order_acquire)) {
+        //LOGD ("process slot A");
         slotA.compute(n_samples, bufa, bufa);
         if (*(_normSlotA)) slotA.normalize(n_samples, bufa);
     }
 
     //wait for parallel processed slot B when needed
     if (_neuralB.load(std::memory_order_acquire)) {
+        //LOGD ("wait for parallel processed");
         pro.processWait();
     }
 
     // mix output when needed
     if (_neuralA.load(std::memory_order_acquire) && _neuralB.load(std::memory_order_acquire)) {
+        //LOGD ("mix output ");
         for (int i0 = 0; i0 < n_samples; i0 = i0 + 1) {
             fRec2[0] = fSlow2 + 0.999 * fRec2[1];
             output[i0] = bufa[i0] * (1.0 - fRec2[0]) + bufb[i0] * fRec2[0];
             fRec2[1] = fRec2[0];
         }
     } else if (_neuralA.load(std::memory_order_acquire)) {
+        //LOGD ("_neuralA.load");
         memcpy(output, bufa, n_samples*sizeof(float));
     } else if (_neuralB.load(std::memory_order_acquire)) {
+        //LOGD ("_neuralB.load");
         memcpy(output, bufb, n_samples*sizeof(float));
     }
 
@@ -972,8 +1012,10 @@ inline void Xratatouille::processDsp(uint32_t n_samples, float* input, float* ou
 inline void Xratatouille::run_dsp(uint32_t n_samples)
 {
     check_messages(n_samples);
+    
     if (((*_buffered)) && bufferIsInit.load(std::memory_order_acquire)) {
         if ( buffersize < n_samples) {
+            
             bufferIsInit.store(false, std::memory_order_release);
             _execute.store(true, std::memory_order_release);
             xrworker.runProcess();
@@ -981,6 +1023,7 @@ inline void Xratatouille::run_dsp(uint32_t n_samples)
                 memcpy(output0, input0, n_samples*sizeof(float));
             return;
         }
+        
         par.processWait();
         memcpy(output0, bufferoutput0, bufsize*sizeof(float));
         memcpy(bufferoutput0, input0, n_samples*sizeof(float));
@@ -990,6 +1033,7 @@ inline void Xratatouille::run_dsp(uint32_t n_samples)
         (*_latency) = bufsize;
         
     } else {
+        
         processDsp(n_samples, input0, output0);
         (*_latency) = 0.0;
     }
@@ -1107,15 +1151,15 @@ Xratatouille::instantiate(const LV2_Descriptor* descriptor,
     }
 
     if (!self->schedule) {
-        fprintf(stderr, "Missing feature work:schedule.\n");
+        //LOGD( "Missing feature work:schedule.\n");
         self->_execute.store(true, std::memory_order_release);
     }
 
     if (!self->map) {
-        fprintf(stderr, "Missing feature uri:map.\n");
+        //LOGD ("Missing feature uri:map.\n");
     }
     else if (!options) {
-        fprintf(stderr, "Missing feature options.\n");
+        //LOGD ("Missing feature options.\n");
     }
     else {
         LV2_URID bufsz_max = self->map->map(self->map->handle, LV2_BUF_SIZE__maxBlockLength);
@@ -1142,10 +1186,10 @@ Xratatouille::instantiate(const LV2_Descriptor* descriptor,
         }
 
         if (bufsize == 0) {
-            fprintf(stderr, "No maximum buffer size given.\n");
+            //LOGD ("No maximum buffer size given.\n");
         } else {
             self->bufsize = bufsize;
-            printf("using block size: %d\n", bufsize);
+            //LOGD ("using block size: %d\n", bufsize);
         }
     }
 
@@ -1203,7 +1247,7 @@ LV2_Worker_Status Xratatouille::work_response(LV2_Handle instance,
               uint32_t    size,
               const void* data)
 {
-  //printf("worker respose.\n");
+  ////LOGD ("worker respose.\n");
   return LV2_WORKER_SUCCESS;
 }
 

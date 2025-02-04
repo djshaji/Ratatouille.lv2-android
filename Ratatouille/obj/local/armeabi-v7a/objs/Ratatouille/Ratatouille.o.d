@@ -1,5 +1,5 @@
 ./obj/local/armeabi-v7a/objs/Ratatouille/Ratatouille.o: \
-  jni/Ratatouille.cpp jni/gx_resampler.h \
+  jni/Ratatouille.cpp jni/log.h jni/gx_resampler.h \
   zita-resampler-1.1.0/zita-resampler/resampler.h \
   zita-resampler-1.1.0/zita-resampler/resampler-table.h jni/dcblocker.cc \
   jni/cdelay.cc jni/phasecor.cc jni/ModelerSelector.h \
@@ -276,6 +276,7 @@
   jni/fftconvolver.cc jni/fftconvolver.h \
   ../FFTConvolver/TwoStageFFTConvolver.h ../FFTConvolver/FFTConvolver.h \
   ../FFTConvolver/AudioFFT.h ../FFTConvolver/Utilities.h
+jni/log.h:
 jni/gx_resampler.h:
 zita-resampler-1.1.0/zita-resampler/resampler.h:
 zita-resampler-1.1.0/zita-resampler/resampler-table.h:
